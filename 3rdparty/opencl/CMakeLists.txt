@@ -1,6 +1,7 @@
 set(OPENCL_HEADERS_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(opencl-header) set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(opencl-header)
 
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(OPENCL_CLHPP_HEADERS_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(opencl-clhpp)
 

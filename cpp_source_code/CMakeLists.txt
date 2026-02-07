@@ -10,7 +10,9 @@ target_compile_definitions(seed_search_object PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
 add_library(seed_search_shard SHARED $<TARGET_OBJECTS:seed_search_object>)
 set_target_properties(seed_search_shard PROPERTIES OUTPUT_NAME "dsp_seed_search")
-target_link_libraries(seed_search_shard PUBLIC OpenCL::OpenCL )
+target_link_libraries(seed_search_shard PUBLIC
+    OpenCL::OpenCL
+)
 
 if (BUILD_PYTHON STREQUAL "ON")
     add_subdirectory(python_wrapper)

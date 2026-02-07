@@ -8,7 +8,7 @@ param(
     [string]$buildType = "Release"
 )
 
-$vsBuildToolInstallPath = "D:\MSVC"
+$vsBuildToolInstallPath = "D:\Program\Microsoft Visual Studio\2022\Community"
 if (-not (Test-Path $vsBuildToolInstallPath)) {
     Write-Error "Visual Studio BuildTools not found at: $vsBuildToolInstallPath"
     exit 1
@@ -18,7 +18,8 @@ if (-not (Test-Path $devShellModule)) {
     Write-Error "Microsoft.VisualStudio.DevShell.dll not found"
     exit 1
 }
-Import-Module $devShellModule Enter-VsDevShell -VsInstallPath $vsBuildToolInstallPath -Arch amd64 -SkipAutomaticLocation
+Import-Module $devShellModule
+Enter-VsDevShell -VsInstallPath $vsBuildToolInstallPath -Arch amd64 -SkipAutomaticLocation
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $projectRoot = Resolve-Path "$scriptDir\.."
