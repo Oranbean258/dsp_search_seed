@@ -20,9 +20,25 @@ if (BUILD_PYTHON STREQUAL "ON")
 
     file(GLOB_RECURSE PY_SRC_FILES ${PROJECT_SOURCE_DIR}/cpp_source_code/*.cpp)
     pybind11_add_module(_pydsp_seed_search ${PY_SRC_FILES} ${SRC_FILES})
-    set_target_properties(_pydsp_seed_search PROPERTIES CXX_STANDARD 17)
-    set_target_properties(_pydsp_seed_search PROPERTIES OUTPUT_NAME "_pydsp_seed_search")
-    target_compile_definitions(_pydsp_seed_search PRIVATE GLM_ENABLE_EXPERIMENTAL)
+    set_target_properties(_pydsp_seed_search PROPERTIES
+        CXX_STANDARD 20
+        INTERPROCEDURAL_OPTIMIZATION ON
+        OUTPUT_NAME "_pydsp_seed_search"
+    )
+    target_compile_definitions(_pydsp_seed_search PRIVATE
+        GLM_ENABLE_EXPERIMENTAL
+        SUPPORT_AVX2
+        $<$<CONFIG:Release>:NDEBUG>
+        CL_HPP_TARGET_OPENCL_VERSION=200
+    )
+    target_compile_options(_pydsp_seed_search PRIVATE
+            $<$<CONFIG:Release>:/O2>
+            $<$<CONFIG:Release>:/Ot>
+    )
+    target_link_options(_pydsp_seed_search PRIVATE
+        $<$<CONFIG:Release>:/OPT:REF>
+        $<$<CONFIG:Release>:/OPT:ICF>
+    )
     target_link_libraries(_pydsp_seed_search PRIVATE
         glm::glm
         OpenCL::Headers
