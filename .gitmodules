@@ -1,0 +1,12 @@
+[submodule "3rdparty/glm/glm"]
+	path = 3rdparty/glm/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "3rdparty/opencl/opencl-header"]
+	path = 3rdparty/opencl/opencl-header
+	url = https://github.com/KhronosGroup/OpenCL-Headers.git
+[submodule "3rdparty/opencl/opencl-clhpp"]
+	path = 3rdparty/opencl/opencl-clhpp
+	url = https://github.com/KhronosGroup/OpenCL-CLHPP.git
+[submodule "3rdparty/opencl/opencl-icd-loader"]
+	path = 3rdparty/opencl/opencl-icd-loader
+	url = https://github.com/KhronosGroup/OpenCL-ICD-Loader.git
