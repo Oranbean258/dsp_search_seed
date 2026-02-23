@@ -1,19 +1,21 @@
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget, QFileDialog, QGridLayout, QTreeWidgetItem, QApplication, QDialog
-from PySide6.QtCore import Qt, QThread, Signal
-from qfluentwidgets import TitleLabel, BodyLabel, PushButton, CaptionLabel
 from csv import reader
+from multiprocessing import cpu_count
+
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget, QFileDialog, QGridLayout, QTreeWidgetItem, QApplication, QDialog
+from PySide6.QtCore import Qt
+from qfluentwidgets import BodyLabel, PushButton
+
+from CApi import GetDataManager
+from config import cfg
+from logger import log
 from .Compoents import *
 from .sort_seed import SortThread
-from CApi import GetDataManager
-from multiprocessing import cpu_count
-from config import cfg
 
 class ViewerInterface(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.seed_list = []
+        self.seed_list = SeedList(100000)
         self.seed_buffer = {}
-        self.max_seed = 100000
         self.max_buffer = 100
 
         self.current_select = None
@@ -30,6 +32,7 @@ class ViewerInterface(QFrame):
 
         self.sort_thread = SortThread(self)
         self.sort_thread.label_text.connect(self.progress_label.setText)
+        self.sort_thread.started.connect(self.__on_sort_started)
         self.sort_thread.completed.connect(self.__on_sort_completed)
         self.sort_thread.finished.connect(self.__on_sort_finished)
 
@@ -45,7 +48,8 @@ class ViewerInterface(QFrame):
         self.leftLayout.addWidget(self.seed_scroll)
         self.seed_scroll.itemClicked.connect(self.__on_select_seed_change)
 
-        self.seed_text = SeedText(self.seed_list, self.max_seed)
+        self.seed_text = SeedText(self.seed_list)
+        self.seed_scroll.SeedListUpdated.connect(self.seed_text.fresh)
         self.seed_text.setAlignment(Qt.AlignBottom)
         self.leftLayout.addWidget(self.seed_text)
 
@@ -118,21 +122,20 @@ class ViewerInterface(QFrame):
         self.buttonsLayout.addWidget(self.start_button, 3, 0)
         self.buttonsLayout.addWidget(self.stop_button, 3, 1)
 
-
     def __on_manual_add_button_clicked(self) -> None:
         dlg = ManualAddMessageBox(self.seed_list, self)
         if dlg.exec() != QDialog.Accepted:
             return
 
         seed_id, star_num = int(dlg.seed_id.text()), int(dlg.star_num.text())
-        self.seed_list.append([seed_id, star_num, 0])
-        self.seed_scroll.add_row(seed_id, star_num)
-        self.seed_text.fresh()
+        if self.seed_list.add_seed(seed_id, star_num):
+            self.seed_scroll.add_row(seed_id, star_num)
+            self.seed_text.fresh()
 
     def __on_start_button_clicked(self) -> None:
         if self.sort_thread.isRunning():
             return
-        if len(self.seed_list) < 2:
+        if self.seed_list.get_seed_num()[0] < 1:
             self.progress_label.setText("<font color='red'>请导入种子，再排序！</font>")
             return
         self.start_button.setEnabled(False)
@@ -144,11 +147,15 @@ class ViewerInterface(QFrame):
     def __on_stop_button_clicked(self) -> None:
         self.sort_thread.terminate()
 
+    def __on_sort_started(self) -> None:
+        self.seed_scroll.disable_context_menu = True
+
     def __on_sort_finished(self) -> None:
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.delete_button.setEnabled(True)
         self.add_button.setEnabled(True)
+        self.seed_scroll.disable_context_menu = False
 
     def __on_sort_completed(self) -> None:
         self.progress_label.setText("排序中...")
@@ -156,11 +163,15 @@ class ViewerInterface(QFrame):
         self.progress_label.setText("排序完成！")
 
     def __on_select_seed_change(self):
-        seed_id, star_num = self.seed_scroll.get_select_seed()
-        if seed_id < 0 or star_num < 0 or self.current_select == (seed_id, star_num):
+        select_seed = self.seed_scroll.get_select_seed()
+        if len(select_seed) > 1 or len(select_seed) == 0:
             return
 
+        seed_id, star_num = select_seed[0]
+        if self.current_select == (seed_id, star_num):
+            return
         self.current_select = (seed_id, star_num)
+
         if (seed_id, star_num) in self.seed_buffer:
             galaxy_data = self.seed_buffer[(seed_id, star_num)]
             self.astro_tree.fresh(galaxy_data)
@@ -191,15 +202,10 @@ class ViewerInterface(QFrame):
         self.astro_info.fresh(item)
 
     def __on_delete_button_clicked(self) -> None:
-        if self.sort_thread.isRunning():
-            return
-        self.seed_scroll.delete_select()
-        self.seed_text.fresh()
+        data = self.seed_scroll.get_select_seed(True)
+        self.seed_list.del_seeds(data)
 
     def __on_export_button_clicked(self) -> None:
-        if self.sort_thread.isRunning():
-            return
-
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "保存文件",
@@ -217,9 +223,6 @@ class ViewerInterface(QFrame):
             f.writelines(f"{i[0]}, {i[1]}, {i[2]}\n" for i in table_value)
 
     def __on_add_button_clicked(self) -> None:
-        if self.sort_thread.isRunning():
-            return
-
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
             '选择CSV文件',
@@ -230,30 +233,19 @@ class ViewerInterface(QFrame):
         if not file_paths:
             return
 
-        if len(self.seed_list) >= self.max_seed:
-            return
-
-        seed_set = set([(i[0], i[1]) for i in self.seed_list])
         for file_path in file_paths:
-            if len(self.seed_list) >= self.max_seed:
+            if self.seed_list.is_full():
                 break
             with open(file_path, "r", encoding="utf-8") as f:
                 data = reader(f)
                 for row in data:
-                    if len(self.seed_list) >= self.max_seed:
+                    if self.seed_list.is_full():
                         break
                     try:
                         seed = int(row[0])
                         star_num = int(row[1])
                     except Exception:
                         continue
-
-                    if not (0 <= seed <= 99999999 and 32 <= star_num <= 64):
-                        continue
-
-                    if (seed, star_num) not in seed_set:
-                        seed_set.add((seed, star_num))
-                        self.seed_list.append([seed, star_num, 0])
+                    if self.seed_list.add_seed(seed, star_num):
                         self.seed_scroll.add_row(seed, star_num)
-
         self.seed_text.fresh()

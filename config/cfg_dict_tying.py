@@ -47,6 +47,7 @@ class PlanetCondition(BaseModel):
 
     veins_condition: VeinsCondition = VeinsCondition()
     veins_point_condition: VeinsCondition = VeinsCondition()
+    moon_conditions: list['PlanetCondition'] = []
     uuid: UUID = Field(default_factory=uuid4)
 
 class StarCondition(BaseModel):
@@ -72,13 +73,53 @@ class GalaxyCondition(BaseModel):
     star_condition: list[StarCondition] = []
     planet_condition: list[PlanetCondition] = []
 
+# csv 导出设置
+class GalaxyExportCondition(BaseModel):
+    enable: bool = True
+    veins: bool = True
+    gas_veins: bool = True
+    liquid: bool = True
+    star_types: bool = True
+    planet_types: bool = True
+
+class StarExportCondition(BaseModel):
+    enable: bool = True
+    distance: bool = True
+    location: bool = False
+    ds_radius: bool = True
+    ds_lumino: bool = True
+    veins: bool = True
+    gas_veins: bool = True
+    liquid: bool = True
+    type: bool = True
+
+class PlanetExportCondition(BaseModel):
+    enable: bool = True
+    star_name: bool = True
+    star_lumino: bool = True
+    star_distance: bool = True
+    star_location: bool = False
+    star_type: bool = True
+    singularity: bool = True
+    dsp_level: bool = True
+    liquid: bool = True
+    veins: bool = True
+    gas_veins: bool = True
+    planet_type: bool = True
+    wind_usage: bool = True
+    light_usage: bool = True
+
+class CSVExportCondition(BaseModel):
+    galaxy: GalaxyExportCondition = GalaxyExportCondition()
+    star: StarExportCondition = StarExportCondition()
+    planet: PlanetExportCondition = PlanetExportCondition()
+
 class GUIConfig(BaseModel):
     start_seed: int = 0
     end_seed: int = 99999
     start_star_num: int = 32
     end_star_num: int = 64
     max_thread: int = cpu_count()
-    # batch_size: int = 128
     ui_scale_factor: float = 1.0
     galaxy_condition: GalaxyCondition = GalaxyCondition()
     save_name: str = "seed"
@@ -86,7 +127,10 @@ class GUIConfig(BaseModel):
     quick_check: bool = False
     local_size: int = 256
     device_name: str = "cpu"
+    max_gpu_worker: int = 1
     use_gpu: bool = False # 仅仅是方便初始化, 不过确实是关联的
+    # csv
+    csv: CSVExportCondition = CSVExportCondition()
 
 if __name__ == "__main__":
     # cfg = GUIConfig()

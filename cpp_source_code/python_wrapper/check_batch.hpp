@@ -112,7 +112,7 @@ protected:
 	atomic<bool> finish = false;
 	atomic<bool> stop = false;
 
-	SeedManager seed_manager = SeedManager();
+	SeedManager* seed_manager = nullptr;;
 	GalaxyCondition galaxy_condition;
 	int max_thread;
 	int check_level;
@@ -121,13 +121,13 @@ protected:
 	vector<SeedStruct> result = vector<SeedStruct>(0);
 
 	void task_generator() {
-		seed_manager.reset_index();
+		seed_manager->reset_index();
 		while(true) {
 			while(tasks.size() > 2048 && !stop.load())
 				this_thread::sleep_for(chrono::milliseconds(20));
 			if(stop.load())
 				break;
-			vector<SeedStruct> batch_seeds = seed_manager.get_seeds(1024);
+			vector<SeedStruct> batch_seeds = seed_manager->get_seeds(1024);
 			if(batch_seeds.size()==0)
 				break;
 			lock_guard<mutex> lck(task_mtx);
@@ -170,13 +170,9 @@ public:
 		const py::dict& galaxy_condition_dict,bool quick,int max_thread)
 	{
 		galaxy_condition = galaxy_condition_to_struct(galaxy_condition_dict);
-		check_level = 3;
-		if(quick)
-			check_level = 2;
-		if(!is_need_veins(galaxy_condition))
-			check_level = 1;
+		check_level = get_condition_level(galaxy_condition,quick);
 		this->max_thread = max_thread;
-		this->seed_manager.set_raw_data(seed_manager.get_raw_data());
+		this->seed_manager = &seed_manager;
 	}
 
 	~CheckPreciseManager() {
@@ -209,7 +205,7 @@ public:
 	}
 
 	size_t get_task_num() {
-		return seed_manager.get_seeds_count();
+		return seed_manager->get_seeds_count();
 	}
 
 	size_t get_task_progress() {
@@ -277,11 +273,7 @@ public:
 		const py::dict& galaxy_condition_dict,bool quick,int max_thread)
 	{
 		galaxy_condition = galaxy_condition_to_struct(galaxy_condition_dict);
-		check_level = 3;
-		if(quick)
-			check_level = 2;
-		if(!is_need_veins(galaxy_condition))
-			check_level = 1;
+		check_level = get_condition_level(galaxy_condition,quick);
 		this->start_seed = start_seed;
 		this->end_seed = end_seed;
 		this->start_star_num = start_star_num;
@@ -294,11 +286,7 @@ public:
 		const GalaxyCondition& galaxy_condition,bool quick,int max_thread)
 	{
 		this->galaxy_condition = galaxy_condition;
-		check_level = 3;
-		if(quick)
-			check_level = 2;
-		if(!is_need_veins(galaxy_condition))
-			check_level = 1;
+		check_level = get_condition_level(galaxy_condition,quick);
 		this->start_seed = start_seed;
 		this->end_seed = end_seed;
 		this->start_star_num = start_star_num;

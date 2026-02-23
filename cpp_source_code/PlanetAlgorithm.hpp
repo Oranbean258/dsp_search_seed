@@ -5,13 +5,13 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <mutex>
 #include <glm/glm.hpp>
 #include <CL/opencl.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#include "defines.hpp"
-#include "LDB.hpp"
+#include "astro_class.hpp"
 #include "util.hpp"
 #include "Maths.hpp"
 #include "Vector3.hpp"
@@ -21,6 +21,8 @@
 #include "SimplexNoise.hpp"
 #include "RandomTable.hpp"
 #include "PlanetRawData.hpp"
+#include "LDB.hpp"
+#include "defines.hpp"
 
 #pragma warning(disable:4267)
 #pragma warning(disable:4244)
@@ -39,17 +41,9 @@ public:
 	static cl::CommandQueue queue;
 	static cl::Program program;
 	static cl::Buffer vertices_buffer;
-	//static cl::Buffer custom_buffer;
-	//static cl::Buffer perm_buffer_1;
-	//static cl::Buffer perm_buffer_2;
-	//static cl::Buffer perm_buffer_3;
-	//static cl::Buffer perm_buffer_4;
-	//static cl::Buffer permMod12_buffer_1;
-	//static cl::Buffer permMod12_buffer_2;
-	//static cl::Buffer permMod12_buffer_3;
-	//static cl::Buffer permMod12_buffer_4;
-	//static cl::Buffer heightData_buffer;
-	//static cl::Buffer debugData_buffer;
+	static mutex lock;
+	static int max_worker;
+	static int cur_worker;
 
 	static void do_init()
 	{
@@ -159,7 +153,7 @@ public:
 		return true;
 	}
 
-	static void set_local_size(int size = 256) {
+	static void set_local_size(int size = 32) {
 		if(size < 32)
 			size = 32;
 		local_size = size;
@@ -169,6 +163,30 @@ public:
 		ifstream file(file_name);
 		string* source_code = new string(istreambuf_iterator<char>(file),(istreambuf_iterator<char>()));
 		sources.push_back((*source_code).c_str());
+	}
+
+	static void set_max_worker(int num) {
+		lock_guard<mutex> lck(lock);
+		max_worker = num;
+	}
+
+	static int get_max_worker() {
+		lock_guard<mutex> lck(lock);
+		return max_worker;
+	}
+
+	static bool get_worker() {
+		lock_guard<mutex> lck(lock);
+		if(cur_worker < max_worker) {
+			cur_worker++;
+			return true;
+		}
+		return false;
+	}
+
+	static void return_worker() {
+		lock_guard<mutex> lck(lock);
+		cur_worker--;
 	}
 };
 
@@ -191,9 +209,31 @@ public:
 		return Vector3(vec.x,vec.y,vec.z);
 	}
 
-	virtual void GenerateTerrain(PlanetClass& planet, double modX, double modY) = 0;
+	void get_veins(const StarClass& star,const PlanetClass& planet,const int birthPlanetId,int* veins_group,int* veins_point)
+	{
+		StarClassSimple star_simple;
+		star_simple.type = star.type;
+		star_simple.index = star.index;
+		star_simple.spectr = star.spectr;
+		PlanetClassSimple planet_simple;
+		planet_simple.star = &star_simple;
+		planet_simple.id = planet.id;
+		planet_simple.seed = planet.seed;
+		planet_simple.theme = planet.theme;
+		planet_simple.mod_x = planet.mod_x;
+		planet_simple.mod_y = planet.mod_y;
+		planet_simple.radius = planet.radius;
+		this->GenerateTerrain(planet_simple);
+		this->GenerateVeins(planet_simple,birthPlanetId);
+		for(int i=0; i < 14; i++) {
+			veins_group[i] = planet_simple.veins_group[i];
+			veins_point[i] = planet_simple.veins_point[i];
+		}
+	}
 
-	virtual void GenerateVeins(StarClass& star, PlanetClass& planet, int birthPlanetId, int* veins,int* res) {
+	virtual void GenerateTerrain(PlanetClassSimple& planet) = 0;
+
+	virtual void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) {
 		ThemeProto themeProto = LDB.Select(planet.theme);
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		dotNet35Random.Next();
@@ -219,6 +259,7 @@ public:
 			}
 		}
 		float p = 1.0f;
+		StarClassSimple& star = *planet.star;
 		ESpectrType spectr = star.spectr;
 		switch(star.type)
 		{
@@ -347,7 +388,7 @@ public:
 		bool flag = birthPlanetId == planet.id;
 		if(flag)
 		{
-			planet.GenBirthPoints(rawData,birthSeed);
+			planet.GenBirthPoints(birthSeed,star.uPosition);
 		}
 		veinVectorCount = 0;
 		Vector3 birthPoint;
@@ -440,7 +481,7 @@ public:
 			Vector3 normalized = Vector3::Normalize(veinVectors[vein_group_index]);
 			EVeinType eVeinType2 = veinVectorTypes[vein_group_index];
 			int vein_point_type = (int)eVeinType2;
-			veins[vein_point_type-1]++;
+			planet.veins_group[vein_point_type-1]++;
 			glm::quat quaternion = glm::rotation(vector3_to_glm(Vector3::up()),vector3_to_glm(normalized));
 			Vector3 vector = glm_to_vector3(quaternion * vector3_to_glm(Vector3::right()));
 			Vector3 vector2 = glm_to_vector3(quaternion * vector3_to_glm(Vector3::forward()));
@@ -526,7 +567,7 @@ public:
 				//}
 				if(planet.waterItemId == 0 || num29 >= planet.radius)
 				{
-					res[vein_point_type-1]++;
+					planet.veins_point[vein_point_type-1]++;
 				}
 			}
 		}
@@ -542,39 +583,39 @@ public:
 class PlanetAlgorithm0: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet, double modX, double modY) override
+	void GenerateTerrain(PlanetClassSimple& planet) override
 	{
 		PlanetRawData& data = planet.data;
-		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
-			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain0");
+		data.heightData.resize(DATALENGTH,(unsigned short)((double)planet.radius * 100.0));
+		//if(OpenCLManager::SUPPORT_GPU) {
+		//	cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain0");
 
-			cl::Buffer heightData_buffer(OpenCLManager::context,CL_MEM_WRITE_ONLY,sizeof(unsigned short) * DATALENGTH);
+		//	cl::Buffer heightData_buffer(OpenCLManager::context,CL_MEM_WRITE_ONLY,sizeof(unsigned short) * DATALENGTH);
 
-			kernel.setArg(0,sizeof(float),&planet.radius);
-			kernel.setArg(1,heightData_buffer);
+		//	kernel.setArg(0,sizeof(float),&planet.radius);
+		//	kernel.setArg(1,heightData_buffer);
 
-			int local_size = OpenCLManager::local_size;
-			int global_size = (int)ceil(161604.0/local_size) * local_size;
-			cl_int err = OpenCLManager::queue.enqueueNDRangeKernel(kernel,cl::NullRange,{(size_t)global_size},{(size_t)local_size});
-			OpenCLManager::queue.finish();
-			if(err != CL_SUCCESS){
-				std::cerr << "Kernel execution failed with error code: " << err << std::endl;
-				throw std::runtime_error("Kernel execution failed");
-			}
+		//	int local_size = OpenCLManager::local_size;
+		//	int global_size = (int)ceil(161604.0/local_size) * local_size;
+		//	cl_int err = OpenCLManager::queue.enqueueNDRangeKernel(kernel,cl::NullRange,{(size_t)global_size},{(size_t)local_size});
+		//	OpenCLManager::queue.finish();
+		//	if(err != CL_SUCCESS){
+		//		std::cerr << "Kernel execution failed with error code: " << err << std::endl;
+		//		throw std::runtime_error("Kernel execution failed");
+		//	}
 
-			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
-						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
-		}
-		else {
-			for(int i = 0; i < DATALENGTH; i++)
-			{
-				data.heightData[i] = (unsigned short)((double)planet.radius * 100.0);
-			}
-		}
+		//	OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
+		//				  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+		//}
+		//else {
+		//	for(int i = 0; i < DATALENGTH; i++)
+		//	{
+		//		data.heightData[i] = (unsigned short)((double)planet.radius * 100.0);
+		//	}
+		//}
 	}
-
-	void GenerateVeins(StarClass& star,PlanetClass& planet,int birthPlanetId,int* veins,int* res) override {
+	
+	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		//do nothing
 	}
 };
@@ -582,7 +623,7 @@ public:
 class PlanetAlgorithm1: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override
+	void GenerateTerrain(PlanetClassSimple& planet) override
 	{
 		double num = 0.01;
 		double num2 = 0.012;
@@ -601,7 +642,7 @@ public:
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
 		//data.debugData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::SUPPORT_DOUBLE) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::SUPPORT_DOUBLE && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain1");
 
 			cl::Buffer perm_buffer_1(OpenCLManager::context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,sizeof(short) * PERM_LENGTH,simplexNoise.perm);
@@ -633,6 +674,7 @@ public:
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
 			//OpenCLManager::queue.enqueueReadBuffer(debugData_buffer,CL_TRUE,0,
 			//			  sizeof(float) * data.debugData.size(),data.debugData.data());
+			OpenCLManager::return_worker();
 		}
 		else {
 			for(int i = 0; i < DATALENGTH; i++) {
@@ -661,8 +703,10 @@ public:
 class PlanetAlgorithm2: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override
+	void GenerateTerrain(PlanetClassSimple& planet) override
 	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		modX = (3.0 - modX - modX) * modX * modX;
 		double num = 0.0035;
 		double num2 = 0.025 * modX + 0.0035 * (1.0 - modX);
@@ -679,7 +723,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num7);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain2");
 
 			float custom[4] = {planet.radius,num,num2,num3};
@@ -710,6 +754,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -742,7 +787,9 @@ private:
 		return a + (b - a) * t;
 	}
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
@@ -754,7 +801,7 @@ public:
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
 		//data.debugData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::SUPPORT_DOUBLE) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::SUPPORT_DOUBLE && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain3");
 
 			float custom[2] = {planet.radius,modX};
@@ -789,6 +836,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -845,11 +893,10 @@ class PlanetAlgorithm4: public PlanetAlgorithm
 {
 private:
 	static constexpr int kCircleCount = 80;
-	Vector4 circles[80] = {};
-	double heights[80] = {};
 
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
@@ -861,7 +908,7 @@ public:
 		int num6 = dotNet35Random.Next();
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain4");
 
 			float custom[401];
@@ -908,7 +955,10 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
+			Vector4 circles[80] = {};
+			double heights[80] = {};
 			for(int i = 0; i < 80; i++)
 			{
 				VectorLF3 vectorLF = RandomTable::SphericNormal(num6,1.0);
@@ -972,7 +1022,8 @@ public:
 class PlanetAlgorithm5: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		int num = dotNet35Random.Next();
 		int num2 = dotNet35Random.Next();
@@ -980,7 +1031,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num2);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain5");
 
 			cl::Buffer perm_buffer_1(OpenCLManager::context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,sizeof(short) * PERM_LENGTH,simplexNoise.perm);
@@ -1008,6 +1059,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1060,7 +1112,8 @@ public:
 class PlanetAlgorithm6: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		int num = dotNet35Random.Next();
 		int num2 = dotNet35Random.Next();
@@ -1068,7 +1121,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num2);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain6");
 
 			cl::Buffer perm_buffer_1(OpenCLManager::context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,sizeof(short) * PERM_LENGTH,simplexNoise.perm);
@@ -1096,6 +1149,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1149,7 +1203,8 @@ public:
 class PlanetAlgorithm7: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
 		double num = 0.008;
 		double num2 = 0.01;
 		double num3 = 0.01;
@@ -1166,7 +1221,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num11);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain7");
 
 			cl::Buffer perm_buffer_1(OpenCLManager::context,CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,sizeof(short) * PERM_LENGTH,simplexNoise.perm);
@@ -1194,6 +1249,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1218,7 +1274,7 @@ public:
 		}
 	}
 
-	void GenerateVeins(StarClass& star,PlanetClass& planet,int birthPlanetId,int* veins,int* res) override {
+	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		dotNet35Random.Next();
@@ -1244,6 +1300,7 @@ public:
 			}
 		}
 		float p = 1.0f;
+		StarClassSimple& star = *planet.star;
 		ESpectrType spectr = star.spectr;
 		switch(star.type)
 		{
@@ -1443,7 +1500,7 @@ public:
 			Vector3 normalized = Vector3::Normalize(veinVectors[vein_group_index]);
 			EVeinType eVeinType2 = veinVectorTypes[vein_group_index];
 			int vein_point_type = (int)eVeinType2;
-			veins[vein_point_type-1]++;
+			planet.veins_group[vein_point_type-1]++;
 			glm::quat quaternion = glm::rotation(vector3_to_glm(Vector3::up()),vector3_to_glm(normalized));
 			Vector3 vector = glm_to_vector3(quaternion * vector3_to_glm(Vector3::right()));
 			Vector3 vector2 = glm_to_vector3(quaternion * vector3_to_glm(Vector3::forward()));
@@ -1502,7 +1559,7 @@ public:
 				//	vein.pos = planet.aux.RawSnap(vein.pos);
 				//}
 				//float num29 = data.QueryHeight(vein_pos);
-				res[vein_point_type-1]++;
+				planet.veins_point[vein_point_type-1]++;
 			}
 		}
 		tmp_vecs.clear();
@@ -1512,14 +1569,17 @@ public:
 class PlanetAlgorithm8: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		double num = 0.002 * modX;
 		double num2 = 0.002 * modX * modX * 6.66667;
 		double num3 = 0.002 * modX;
 		SimplexNoise simplexNoise = SimplexNoise(DotNet35Random(planet.seed).Next());
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain8");
 
 			float custom[5] = {planet.radius,num,num2,num3,modY};
@@ -1546,6 +1606,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1583,7 +1644,10 @@ public:
 class PlanetAlgorithm9: public PlanetAlgorithm
 {
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		double num = 0.01;
 		double num2 = 0.012;
 		double num3 = 0.01;
@@ -1600,7 +1664,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num11);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain9");
 
 			float custom[3] = {planet.radius,modX,modY};
@@ -1631,6 +1695,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1675,9 +1740,6 @@ class PlanetAlgorithm10: public PlanetAlgorithm
 {
 private:
 	static constexpr int kCircleCount = 10;
-	Vector4 ellipses[10] = {};
-	double eccentricities[10] = {};
-	double heights[10] = {};
 	double Max(double a,double b)
 	{
 		if((a > b))
@@ -1691,7 +1753,8 @@ private:
 		return (x - sourceMin) / (sourceMax - sourceMin) * (targetMax - targetMin) + targetMin;
 	}
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
@@ -1707,7 +1770,7 @@ public:
 		int num8 = dotNet35Random.Next();
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain10");
 
 			float custom[61];
@@ -1768,7 +1831,11 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
+			Vector4 ellipses[10] = {};
+			double eccentricities[10] = {};
+			double heights[10] = {};
 			for(int i = 0; i < 10; i++)
 			{
 				VectorLF3 vectorLF = RandomTable::SphericNormal(num8,1.0);
@@ -1876,7 +1943,10 @@ private:
 		return (x - sourceMin) / (sourceMax - sourceMin) * (targetMax - targetMin) + targetMin;
 	}
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
@@ -1892,7 +1962,7 @@ public:
 		SimplexNoise simplexNoise3 = SimplexNoise(num9);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain11");
 
 			float custom[5] = {planet.radius,num4,num5,num6,modY};
@@ -1927,6 +1997,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -1953,7 +2024,7 @@ public:
 		}
 	}
 
-	void GenerateVeins(StarClass& star,PlanetClass& planet,int birthPlanetId,int* veins,int* res) override {
+	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		dotNet35Random.Next();
@@ -1979,6 +2050,7 @@ public:
 			}
 		}
 		float p = 1.0f;
+		StarClassSimple& star = *planet.star;
 		ESpectrType spectr = star.spectr;
 		switch(star.type)
 		{
@@ -2204,7 +2276,7 @@ public:
 			Vector3 normalized = Vector3::Normalize(veinVectors[vein_group_index]);
 			EVeinType eVeinType2 = veinVectorTypes[vein_group_index];
 			int vein_point_type = (int)eVeinType2;
-			veins[vein_point_type-1]++;
+			planet.veins_group[vein_point_type-1]++;
 			glm::quat quaternion = glm::rotation(vector3_to_glm(Vector3::up()),vector3_to_glm(normalized));
 			Vector3 vector = glm_to_vector3(quaternion * vector3_to_glm(Vector3::right()));
 			Vector3 vector2 = glm_to_vector3(quaternion * vector3_to_glm(Vector3::forward()));
@@ -2269,7 +2341,7 @@ public:
 				float num29 = data.QueryHeight(vein_pos);
 				if(planet.waterItemId == 0 || num29 >= planet.radius)
 				{
-					res[vein_point_type-1]++;
+					planet.veins_point[vein_point_type-1]++;
 				}
 			}
 		}
@@ -2295,7 +2367,10 @@ private:
 		return Math.Pow(1.0 - t,3.0) + Math.Pow(1.0 - t,2.0) * 3.0 * t;
 	}
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		double num = 1.1 * modX;
 		double num2 = 0.2;
 		double num3 = 8.0;
@@ -2306,7 +2381,7 @@ public:
 		SimplexNoise simplexNoise2 = SimplexNoise(num5);
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain12");
 
 			float custom[3] = {planet.radius,num,modY};
@@ -2337,6 +2412,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -2367,7 +2443,7 @@ public:
 		}
 	}
 
-	void GenerateVeins(StarClass& star,PlanetClass& planet,int birthPlanetId,int* veins,int* res) override {
+	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		dotNet35Random.Next();
@@ -2393,6 +2469,7 @@ public:
 			}
 		}
 		float p = 1.0f;
+		StarClassSimple& star = *planet.star;
 		ESpectrType spectr = star.spectr;
 		switch(star.type)
 		{
@@ -2618,7 +2695,7 @@ public:
 			Vector3 normalized = Vector3::Normalize(veinVectors[vein_group_index]);
 			EVeinType eVeinType2 = veinVectorTypes[vein_group_index];
 			int vein_point_type = (int)eVeinType2;
-			veins[vein_point_type-1]++;
+			planet.veins_group[vein_point_type-1]++;
 			glm::quat quaternion = glm::rotation(vector3_to_glm(Vector3::up()),vector3_to_glm(normalized));
 			Vector3 vector = glm_to_vector3(quaternion * vector3_to_glm(Vector3::right()));
 			Vector3 vector2 = glm_to_vector3(quaternion * vector3_to_glm(Vector3::forward()));
@@ -2683,7 +2760,7 @@ public:
 				float num29 = data.QueryHeight(vein_pos);
 				if(planet.waterItemId == 0 || num29 >= planet.radius)
 				{
-					res[vein_point_type-1]++;
+					planet.veins_point[vein_point_type-1]++;
 				}
 			}
 		}
@@ -2699,14 +2776,17 @@ private:
 		return (x - sourceMin) / (sourceMax - sourceMin) * (targetMax - targetMin) + targetMin;
 	}
 public:
-	void GenerateTerrain(PlanetClass& planet,double modX,double modY) override {
+	void GenerateTerrain(PlanetClassSimple& planet) override
+	{
+		double modX = planet.mod_x;
+		double modY = planet.mod_y;
 		double num = 0.007 * modX;
 		double num2 = 0.007 * modX;
 		double num3 = 0.007 * modX;
 		SimplexNoise simplexNoise = SimplexNoise(DotNet35Random(planet.seed).Next());
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
-		if(OpenCLManager::SUPPORT_GPU) {
+		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
 			cl::Kernel kernel(OpenCLManager::program,"GenerateTerrain13");
 
 			float custom[5] = {planet.radius,num,num2,num3,modY};
@@ -2733,6 +2813,7 @@ public:
 
 			OpenCLManager::queue.enqueueReadBuffer(heightData_buffer,CL_TRUE,0,
 						  sizeof(unsigned short) * data.heightData.size(),data.heightData.data());
+			OpenCLManager::return_worker();
 		} else {
 			for(int i = 0; i < DATALENGTH; i++)
 			{
@@ -2761,7 +2842,7 @@ public:
 		}
 	}
 
-	void GenerateVeins(StarClass& star,PlanetClass& planet,int birthPlanetId,int* veins,int* res) override {
+	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
 		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
 		dotNet35Random.Next();
@@ -2787,6 +2868,7 @@ public:
 			}
 		}
 		float p = 1.0f;
+		StarClassSimple& star = *planet.star;
 		ESpectrType spectr = star.spectr;
 		switch(star.type)
 		{
@@ -3012,7 +3094,7 @@ public:
 			Vector3 normalized = Vector3::Normalize(veinVectors[vein_group_index]);
 			EVeinType eVeinType2 = veinVectorTypes[vein_group_index];
 			int vein_point_type = (int)eVeinType2;
-			veins[vein_point_type-1]++;
+			planet.veins_group[vein_point_type-1]++;
 			glm::quat quaternion = glm::rotation(vector3_to_glm(Vector3::up()),vector3_to_glm(normalized));
 			Vector3 vector = glm_to_vector3(quaternion * vector3_to_glm(Vector3::right()));
 			Vector3 vector2 = glm_to_vector3(quaternion * vector3_to_glm(Vector3::forward()));
@@ -3077,7 +3159,7 @@ public:
 				float num29 = data.QueryHeight(vein_pos);
 				if(planet.waterItemId == 0 || num29 >= planet.radius)
 				{
-					res[vein_point_type-1]++;
+					planet.veins_point[vein_point_type-1]++;
 				}
 			}
 		}

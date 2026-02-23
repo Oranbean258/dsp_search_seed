@@ -57,6 +57,7 @@ def config_to_planet_condition(planet_cfg: PlanetCondition) -> dict:
             planet_condition["dsp_level"] = planet_cfg.dsp_level
         if planet_cfg.satisfy_num > 1:
             planet_condition["satisfy_num"] = planet_cfg.satisfy_num
+    planet_condition["moons"] = [config_to_planet_condition(moon_cfg) for moon_cfg in planet_cfg.moon_conditions]
     return planet_condition
 
 def get_veins_dict(data: VeinsCondition) -> dict:
