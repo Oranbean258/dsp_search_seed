@@ -10,6 +10,7 @@ public:
 	int inext = 0;
 	int inextp = 31;
 
+	DotNet35Random() = default;
 	DotNet35Random(int seed)
 	{
 		int num = 161803398 - std::abs(seed);
@@ -98,6 +99,8 @@ public:
 		}
 		#endif
 	}
+	DotNet35Random(const DotNet35Random&) = default;
+    DotNet35Random& operator=(const DotNet35Random&) = default;
 
 	double NextDouble()
 	{
@@ -134,4 +137,28 @@ public:
 			return minValue;
 		return (int)((unsigned int)(Sample() * (double)num) + minValue);
 	}
+};
+
+class DotNet35RandomManager {
+private:
+    struct ThreadContext {
+        int currentSeed = -1;
+        DotNet35Random masterRng;
+    };
+
+#if __cplusplus >= 201703L
+    inline static thread_local ThreadContext context;
+#endif
+
+public:
+    static DotNet35Random GetInstance(int taskSeed) {
+#if __cplusplus < 201703L
+        static thread_local ThreadContext context;
+#endif
+        if (context.currentSeed != taskSeed) {
+            context.masterRng = DotNet35Random(taskSeed);
+            context.currentSeed = taskSeed;
+        }
+        return context.masterRng; 
+    }
 };

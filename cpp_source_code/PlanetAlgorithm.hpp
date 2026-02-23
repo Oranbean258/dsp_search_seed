@@ -235,7 +235,7 @@ public:
 
 	virtual void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) {
 		ThemeProto themeProto = LDB.Select(planet.theme);
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		dotNet35Random.Next();
 		dotNet35Random.Next();
 		dotNet35Random.Next();
@@ -634,7 +634,7 @@ public:
 		double num7 = 0.5;
 		double num8 = 2.5;
 		double num9 = 0.3;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num10 = dotNet35Random.Next();
 		int num11 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num10);
@@ -716,7 +716,7 @@ public:
 		num *= num5;
 		num2 *= num5;
 		num3 *= num5;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num6 = dotNet35Random.Next();
 		int num7 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num6);
@@ -793,7 +793,7 @@ public:
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num4 = dotNet35Random.Next();
 		int num5 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num4);
@@ -900,7 +900,7 @@ public:
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num4 = dotNet35Random.Next();
 		int num5 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num4);
@@ -1024,7 +1024,7 @@ class PlanetAlgorithm5: public PlanetAlgorithm
 public:
 	void GenerateTerrain(PlanetClassSimple& planet) override
 	{
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num = dotNet35Random.Next();
 		int num2 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num);
@@ -1114,7 +1114,7 @@ class PlanetAlgorithm6: public PlanetAlgorithm
 public:
 	void GenerateTerrain(PlanetClassSimple& planet) override
 	{
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num = dotNet35Random.Next();
 		int num2 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num);
@@ -1214,7 +1214,7 @@ public:
 		double num7 = 0.5;
 		double num8 = 2.5;
 		double num9 = 0.3;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num10 = dotNet35Random.Next();
 		int num11 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num10);
@@ -1276,7 +1276,7 @@ public:
 
 	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		dotNet35Random.Next();
 		dotNet35Random.Next();
 		dotNet35Random.Next();
@@ -1576,7 +1576,7 @@ public:
 		double num = 0.002 * modX;
 		double num2 = 0.002 * modX * modX * 6.66667;
 		double num3 = 0.002 * modX;
-		SimplexNoise simplexNoise = SimplexNoise(DotNet35Random(planet.seed).Next());
+		SimplexNoise simplexNoise = SimplexNoise(DotNet35RandomManager::GetInstance(planet.seed).Next());
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
 		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
@@ -1657,7 +1657,7 @@ public:
 		double num7 = 0.5;
 		double num8 = 2.5;
 		double num9 = 0.3;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num10 = dotNet35Random.Next();
 		int num11 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num10);
@@ -1758,7 +1758,7 @@ public:
 		double num = 0.007;
 		double num2 = 0.007;
 		double num3 = 0.007;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num4 = dotNet35Random.Next();
 		int num5 = dotNet35Random.Next();
 		int num6 = dotNet35Random.Next();
@@ -1953,7 +1953,7 @@ public:
 		double num4 = 0.002 * modX;
 		double num5 = 0.002 * modX * 4.0;
 		double num6 = 0.002 * modX;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num7 = dotNet35Random.Next();
 		int num8 = dotNet35Random.Next();
 		int num9 = dotNet35Random.Next();
@@ -2026,7 +2026,7 @@ public:
 
 	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		dotNet35Random.Next();
 		dotNet35Random.Next();
 		dotNet35Random.Next();
@@ -2374,7 +2374,7 @@ public:
 		double num = 1.1 * modX;
 		double num2 = 0.2;
 		double num3 = 8.0;
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		int num4 = dotNet35Random.Next();
 		int num5 = dotNet35Random.Next();
 		SimplexNoise simplexNoise = SimplexNoise(num4);
@@ -2445,7 +2445,7 @@ public:
 
 	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		dotNet35Random.Next();
 		dotNet35Random.Next();
 		dotNet35Random.Next();
@@ -2783,7 +2783,7 @@ public:
 		double num = 0.007 * modX;
 		double num2 = 0.007 * modX;
 		double num3 = 0.007 * modX;
-		SimplexNoise simplexNoise = SimplexNoise(DotNet35Random(planet.seed).Next());
+		SimplexNoise simplexNoise = SimplexNoise(DotNet35RandomManager::GetInstance(planet.seed).Next());
 		PlanetRawData& data = planet.data;
 		data.heightData.resize(DATALENGTH);
 		if(OpenCLManager::SUPPORT_GPU && OpenCLManager::get_worker()) {
@@ -2844,7 +2844,7 @@ public:
 
 	void GenerateVeins(PlanetClassSimple& planet,const int birthPlanetId) override {
 		ThemeProto themeProto = LDB.Select(planet.theme);
-		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 		dotNet35Random.Next();
 		dotNet35Random.Next();
 		dotNet35Random.Next();
@@ -3174,7 +3174,7 @@ public:
 //		double num = 0.007;
 //		double num2 = 0.007;
 //		double num3 = 0.007;
-//		DotNet35Random dotNet35Random = DotNet35Random(planet.seed);
+//		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(planet.seed);
 //		int num4 = dotNet35Random.Next();
 //		int num5 = dotNet35Random.Next();
 //		int num6 = dotNet35Random.Next();

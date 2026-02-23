@@ -66,7 +66,7 @@ public:
 		{
 			p[i] = (short)i;
 		}
-		DotNet35Random dotNet35Random = DotNet35Random(seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
 		for(int j = 0; j < 256; j++)
 		{
 			int num = dotNet35Random.Next(0,256);

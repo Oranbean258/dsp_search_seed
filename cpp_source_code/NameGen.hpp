@@ -177,7 +177,7 @@ struct NameGen_t
 
     std::string RandomName(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = (int)(dotNet35Random.NextDouble() * 1.8 + 2.3);
         std::string text = "";
         for (int i = 0; i < num; i++)
@@ -205,7 +205,7 @@ struct NameGen_t
 
     std::string RandomStarName(int seed,const StarClass& starData,std::set<std::string>& starnames)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         for (int i = 0; i < 256; i++)
         {
             std::string text = _RandomStarName(dotNet35Random.Next(), starData);
@@ -219,7 +219,7 @@ struct NameGen_t
 
     std::string _RandomStarName(int seed,const StarClass& starData)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int seed2 = dotNet35Random.Next();
         double num = dotNet35Random.NextDouble();
         double num2 = dotNet35Random.NextDouble();
@@ -256,14 +256,14 @@ struct NameGen_t
 
     std::string RandomStarNameFromRawNames(int seed)
     {
-        int num = DotNet35Random(seed).Next();
+        int num = DotNet35RandomManager::GetInstance(seed).Next();
         num %= raw_star_namesLength;
         return raw_star_names[num];
     }
 
     std::string RandomStarNameWithConstellationAlpha(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next();
         num %= constellationsLength;
@@ -278,7 +278,7 @@ struct NameGen_t
 
     std::string RandomStarNameWithConstellationNumber(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next(27, 75);
         num %= constellationsLength;
@@ -287,14 +287,14 @@ struct NameGen_t
 
     std::string RandomGiantStarNameFromRawNames(int seed)
     {
-        int num = DotNet35Random(seed).Next();
+        int num = DotNet35RandomManager::GetInstance(seed).Next();
         num %= raw_giant_namesLength;
         return raw_giant_names[num];
     }
 
     std::string RandomGiantStarNameWithConstellationAlpha(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next(15, 26);
         int num3 = dotNet35Random.Next(0, 26);
@@ -306,7 +306,7 @@ struct NameGen_t
 
     std::string RandomGiantStarNameWithFormat(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next(10000);
         int num3 = dotNet35Random.Next(100);
@@ -317,7 +317,7 @@ struct NameGen_t
 
     std::string RandomNeutronStarNameWithFormat(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next(24);
         int num3 = dotNet35Random.Next(60);
@@ -328,7 +328,7 @@ struct NameGen_t
 
     std::string RandomBlackHoleNameWithFormat(int seed)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         int num = dotNet35Random.Next();
         int num2 = dotNet35Random.Next(24);
         int num3 = dotNet35Random.Next(60);

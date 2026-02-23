@@ -199,7 +199,7 @@ public:
 
 	//void GenBirthPoints(int _birthSeed,const VectorLF3& star_uPosition)
 	//{
-	//	DotNet35Random dotNet35Random = DotNet35Random(_birthSeed);
+	//	DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(_birthSeed);
 	//	Pose pose = PredictPose(85.0);
 	//	Vector3 vector = Maths::QInvRotateLF(pose.rotation,star_uPosition - pose.position * 40000.0);
 	//	vector.Normalize();

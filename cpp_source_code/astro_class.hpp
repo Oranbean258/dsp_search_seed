@@ -101,7 +101,7 @@ public:
 	
 	void GenBirthPoints(int _birthSeed,const VectorLF3& star_uPosition)
 	{
-		DotNet35Random dotNet35Random = DotNet35Random(_birthSeed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(_birthSeed);
 		Pose pose = PredictPose(85.0);
 		Vector3 vector = Maths::QInvRotateLF(pose.rotation,star_uPosition - pose.position * 40000.0);
 		vector.Normalize();
@@ -348,7 +348,7 @@ protected:
 	PlanetClassSimple CreatePlanet(StarClassSimple& star,int index,int orbitAround,int orbitIndex,int number,bool gasGiant,int info_seed,int gen_seed)
 	{
 		PlanetClassSimple& planet = star.planets[index];
-		DotNet35Random dotNet35Random(info_seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(info_seed);
 		planet.index = index;
 		planet.seed = gen_seed;
 		planet.orbitAround = orbitAround;
@@ -771,7 +771,7 @@ protected:
 
 	void RandomPoses(std::vector<VectorLF3>& tmp_poses,std::vector<VectorLF3>& tmp_drunk,int seed,int maxCount,double minDist,double minStepLen,double maxStepLen,double flatten)
 	{
-		DotNet35Random dotNet35Random(seed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
 		double num1 = dotNet35Random.NextDouble();
 		tmp_poses.push_back(VectorLF3::zero());
 		int num2 = 6;
@@ -1143,7 +1143,7 @@ public:
 
 	void CreateStars(int galaxySeed,int starCount)
 	{
-		DotNet35Random dotNet35Random(galaxySeed);
+		DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(galaxySeed);
 		std::vector<VectorLF3> tmp_poses;
 		int tempPoses = GenerateTempPoses(tmp_poses,dotNet35Random.Next(),starCount,4,2.0,2.3,3.5,0.18);
 		this->seed = galaxySeed;

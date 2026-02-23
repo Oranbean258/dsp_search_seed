@@ -26,7 +26,7 @@ public:
 public:
     void CreateGalaxy(int galaxySeed, int starCount, int fast)
     {
-        DotNet35Random dotNet35Random(galaxySeed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(galaxySeed);
         std::vector<VectorLF3> tmp_poses;
         int tempPoses = GenerateTempPoses(tmp_poses, dotNet35Random.Next(), starCount, 4, 2.0, 2.3, 3.5, 0.18);
         this->seed = galaxySeed;
@@ -289,7 +289,7 @@ public:
             return;
         if (!fast)
         {
-            DotNet35Random dotNet35Random(theme_seed);
+            DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(theme_seed);
             for (int index = 0; index < themeProto1.GasSpeeds.size(); ++index)
             {
                 float num2 = themeProto1.GasSpeeds[index] * (float)(dotNet35Random.NextDouble() * 0.190909147262573 + 0.909090876579285);
@@ -302,7 +302,7 @@ public:
     PlanetClass CreatePlanet(StarClass& star,int index,int orbitAround,int orbitIndex,int number,bool gasGiant,int info_seed,int gen_seed)
     {
         PlanetClass& planet = star.planets[index];
-        DotNet35Random dotNet35Random(info_seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(info_seed);
         planet.index = index;
         planet.seed = gen_seed;
         planet.infoSeed = info_seed;
@@ -1158,7 +1158,7 @@ public:
 
     void RandomPoses(std::vector<VectorLF3>& tmp_poses,std::vector<VectorLF3>& tmp_drunk,int seed,int maxCount,double minDist,double minStepLen,double maxStepLen,double flatten)
     {
-        DotNet35Random dotNet35Random(seed);
+        DotNet35Random dotNet35Random = DotNet35RandomManager::GetInstance(seed);
         double num1 = dotNet35Random.NextDouble();
         tmp_poses.push_back(VectorLF3::zero());
         int num2 = 6;
